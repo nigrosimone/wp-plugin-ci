@@ -178,10 +178,17 @@ jobs:
 
       - uses: ramsey/composer-install@v4
 
+      # La cartella deve chiamarsi come lo slug: il Plugin Check deduce da li'
+      # il text domain atteso, e con un nome generico come "build" segnalerebbe
+      # come sbagliate tutte le chiamate a __() del plugin.
+      - name: Determina lo slug
+        id: slug
+        run: echo "slug=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+
       # Il controllo va fatto sul pacchetto che riceve l'utente, non sul repo:
       # altrimenti segnala file di sviluppo che .distignore esclude gia'.
       - name: Ricostruisci il pacchetto pubblicato
-        run: bash vendor/nigrosimone/wp-plugin-ci/bin/build-dist.sh build
+        run: bash vendor/nigrosimone/wp-plugin-ci/bin/build-dist.sh "build/${{ steps.slug.outputs.slug }}"
 
       # Stessi controlli usati dal team review di wordpress.org.
       #
@@ -190,5 +197,5 @@ jobs:
       # verde, e se diventa rosso e' comparso qualcosa di NUOVO.
       - uses: wordpress/plugin-check-action@v1
         with:
-          build-dir: './build'
+          build-dir: './build/${{ steps.slug.outputs.slug }}'
           ignore-codes: ${{ inputs.plugin-check-ignore-codes }}
