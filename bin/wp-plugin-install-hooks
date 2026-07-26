@@ -1,0 +1,73 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Installa l'hook pre-commit condiviso nel repository del plugin.
+ *
+ * Copia il template in .githooks/ e punta git a quella cartella. La copia (in
+ * luogo di un core.hooksPath dentro vendor/) serve a due cose: poter impostare
+ * il bit di esecuzione, e non legare la configurazione di git a un percorso che
+ * sparisce con "composer install --no-dev".
+ *
+ * .githooks/ e' rigenerata a ogni composer install: non va committata, cosi'
+ * l'hook non puo' divergere fra gli otto plugin.
+ *
+ * Non fallisce mai: se non siamo in un working tree git (per esempio nel
+ * pacchetto pubblicato) esce senza fare nulla, per non rompere l'installazione.
+ */
+
+require_once __DIR__ . '/_autoload.php';
+
+$root = wpci_plugin_root();
+
+if (!is_dir($root . '/.git') && !is_file($root . '/.git')) {
+    exit(0);
+}
+
+$template = __DIR__ . '/../githooks/pre-commit';
+if (!is_file($template)) {
+    echo "Nota: template dell'hook non trovato, hook non installati.\n";
+    exit(0);
+}
+
+$hooks_dir = $root . '/.githooks';
+if (!is_dir($hooks_dir) && !mkdir($hooks_dir, 0777, true) && !is_dir($hooks_dir)) {
+    echo "Nota: impossibile creare $hooks_dir, hook non installati.\n";
+    exit(0);
+}
+
+$target = $hooks_dir . '/pre-commit';
+if (copy($template, $target) === false) {
+    echo "Nota: impossibile scrivere $target, hook non installati.\n";
+    exit(0);
+}
+@chmod($target, 0755);
+
+/**
+ * Imposta una configurazione git locale senza mai far fallire composer install.
+ */
+function wpci_git_config($root, $key, $value) {
+    $output = array();
+    $code   = 0;
+    exec(
+        'git -C ' . escapeshellarg($root) . ' config ' . escapeshellarg($key) . ' ' . escapeshellarg($value) . ' 2>&1',
+        $output,
+        $code
+    );
+    if ($code !== 0) {
+        echo "Nota: non e' stato possibile impostare $key: " . implode(' ', $output) . "\n";
+        return false;
+    }
+    return true;
+}
+
+if (wpci_git_config($root, 'core.hooksPath', '.githooks')) {
+    echo "Hook git attivi (core.hooksPath = .githooks). Per saltarli: git commit --no-verify\n";
+}
+
+// Fa saltare a "git blame" i commit puramente meccanici. GitHub lo fa gia' da
+// solo leggendo il file; questo serve a ottenere lo stesso risultato in locale.
+if (is_file($root . '/.git-blame-ignore-revs')) {
+    wpci_git_config($root, 'blame.ignoreRevsFile', '.git-blame-ignore-revs');
+}
+
+exit(0);

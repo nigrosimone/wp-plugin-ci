@@ -1,0 +1,23 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Stampa la versione dichiarata nell'header del plugin, senza altro output.
+ *
+ * Serve alla CI per sapere quale versione sta per essere rilasciata:
+ *     VERSION="$(wp-plugin-version)"
+ *
+ * Exit code 0 = versione trovata, 1 = non trovata.
+ */
+
+require_once __DIR__ . '/_autoload.php';
+
+$root        = wpci_plugin_root();
+$plugin_file = wpci_require_plugin_file($root);
+$version     = wpci_header_field((string) file_get_contents($plugin_file), 'Version');
+
+if ($version === null || !preg_match('/^\d+(\.\d+)+$/', $version)) {
+    wpci_fail('versione del plugin non trovata in ' . basename($plugin_file) . '.');
+}
+
+echo $version;
+exit(0);

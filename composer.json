@@ -1,0 +1,30 @@
+{
+    "name": "nigrosimone/wp-plugin-ci",
+    "description": "Strumenti e workflow condivisi per il rilascio dei plugin WordPress speed-up-*.",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "keywords": ["wordpress", "plugin", "ci", "release", "wordpress.org"],
+    "authors": [
+        {
+            "name": "Simone Nigro",
+            "email": "nigro.simone@gmail.com",
+            "homepage": "https://profiles.wordpress.org/nigrosimone"
+        }
+    ],
+    "require": {
+        "php": ">=7.2"
+    },
+    "autoload": {
+        "files": ["src/Plugin.php"]
+    },
+    "bin": [
+        "bin/wp-plugin-lint",
+        "bin/wp-plugin-version",
+        "bin/wp-plugin-check-version",
+        "bin/wp-plugin-bump-version",
+        "bin/wp-plugin-install-hooks"
+    ],
+    "config": {
+        "sort-packages": true
+    }
+}

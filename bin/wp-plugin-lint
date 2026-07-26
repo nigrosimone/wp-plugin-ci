@@ -1,0 +1,47 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Esegue "php -l" sui file PHP che finiscono nel pacchetto pubblicato.
+ *
+ * Uso:  wp-plugin-lint          (dalla radice del plugin)
+ *
+ * Exit code 0 = nessun errore di sintassi, 1 = almeno un file non compila.
+ */
+
+require_once __DIR__ . '/_autoload.php';
+
+$root = wpci_plugin_root();
+
+// Vengono controllati solo i file che riceve l'utente: tests/ e bin/ girano sul
+// runner o sulla macchina di sviluppo, e possono usare sintassi piu' recente
+// della versione minima di PHP supportata dal plugin.
+$skip = array('vendor', 'node_modules', '.git', '.github', '.githooks', 'tests', 'bin', 'build');
+
+$iterator = new RecursiveIteratorIterator(
+    new RecursiveCallbackFilterIterator(
+        new RecursiveDirectoryIterator($root, RecursiveDirectoryIterator::SKIP_DOTS),
+        function ($current) use ($skip) {
+            if ($current->isDir()) {
+                return !in_array($current->getFilename(), $skip, true);
+            }
+            return substr($current->getFilename(), -4) === '.php';
+        }
+    )
+);
+
+$errors  = 0;
+$checked = 0;
+
+foreach ($iterator as $file) {
+    $output = array();
+    $code   = 0;
+    exec(escapeshellarg(PHP_BINARY) . ' -l ' . escapeshellarg($file->getPathname()) . ' 2>&1', $output, $code);
+    $checked++;
+    if ($code !== 0) {
+        $errors++;
+        echo implode("\n", $output) . "\n";
+    }
+}
+
+printf("%d file controllati, %d con errori di sintassi (PHP %s)\n", $checked, $errors, PHP_VERSION);
+exit($errors === 0 ? 0 : 1);

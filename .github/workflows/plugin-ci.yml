@@ -1,0 +1,182 @@
+name: Plugin CI
+
+# Workflow riutilizzabile: i repository dei plugin lo richiamano con
+#   jobs:
+#     ci:
+#       uses: nigrosimone/wp-plugin-ci/.github/workflows/plugin-ci.yml@v1
+#
+# I job girano nel contesto del repository chiamante, quindi actions/checkout
+# preleva il plugin, non questo repository.
+
+on:
+  workflow_call:
+    inputs:
+      php-versions:
+        description: 'Array JSON delle versioni PHP su cui verificare la sintassi'
+        type: string
+        required: false
+        default: '["7.2", "7.4", "8.0", "8.1", "8.2", "8.3", "8.4"]'
+      test-php-versions:
+        description: 'Array JSON delle versioni PHP su cui eseguire i test'
+        type: string
+        required: false
+        default: '["7.4", "8.3"]'
+      min-php:
+        description: 'testVersion per PHPCompatibilityWP, per esempio "7.0-"'
+        type: string
+        required: false
+        default: '7.0-'
+      plugin-check-ignore-codes:
+        description: 'Rilievi del Plugin Check noti e accettati, separati da virgola e senza spazi'
+        type: string
+        required: false
+        default: ''
+      run-tests:
+        description: 'Esegue PHPUnit. Da disattivare sui plugin che non hanno ancora una suite'
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # BLOCCANTI: se falliscono, la PR non si merga.
+  # ---------------------------------------------------------------------------
+
+  lint:
+    name: Sintassi PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ${{ fromJSON(inputs.php-versions) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - uses: ramsey/composer-install@v4
+
+      - name: php -l su tutti i file pubblicati
+        run: vendor/bin/wp-plugin-lint
+
+  compat:
+    name: Compatibilita PHP ${{ inputs.min-php }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - uses: ramsey/composer-install@v4
+
+      # Analisi statica: copre anche le versioni di PHP che non stanno nella
+      # matrice runtime, dove non esiste piu' un runner disponibile.
+      - name: PHPCompatibilityWP
+        run: >
+          vendor/bin/phpcs -p
+          --standard=PHPCompatibilityWP
+          --runtime-set testVersion "${{ inputs.min-php }}"
+          --extensions=php
+          --ignore=vendor,node_modules,tests,build
+          .
+
+  versions:
+    name: Coerenza versioni
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - uses: ramsey/composer-install@v4
+
+      # Version: nell'header == Stable tag nel readme, e changelog presente.
+      - name: Verifica header, Stable tag e changelog
+        run: vendor/bin/wp-plugin-check-version
+
+  test:
+    name: Test PHP ${{ matrix.php }}
+    if: inputs.run-tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ${{ fromJSON(inputs.test-php-versions) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - uses: ramsey/composer-install@v4
+
+      - name: PHPUnit
+        run: vendor/bin/phpunit --do-not-cache-result
+
+  coding-standards:
+    name: WordPress Coding Standards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - uses: ramsey/composer-install@v4
+
+      # Il conteggio delle violazioni deve restare a zero: se serve disattivare
+      # una regola, si disattiva in phpcs.xml.dist con una motivazione, non si
+      # lascia passare la violazione.
+      - name: PHPCS
+        run: vendor/bin/phpcs --report=full --report-summary --no-colors
+
+  # ---------------------------------------------------------------------------
+  # INFORMATIVO: dipende da Docker e da centinaia di pacchetti npm, quindi un
+  # problema infrastrutturale non deve bloccare un rilascio.
+  # ---------------------------------------------------------------------------
+
+  plugin-check:
+    name: WordPress Plugin Check (informativo)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - uses: ramsey/composer-install@v4
+
+      # Il controllo va fatto sul pacchetto che riceve l'utente, non sul repo:
+      # altrimenti segnala file di sviluppo che .distignore esclude gia'.
+      - name: Ricostruisci il pacchetto pubblicato
+        run: bash vendor/nigrosimone/wp-plugin-ci/bin/build-dist.sh build
+
+      # Stessi controlli usati dal team review di wordpress.org.
+      #
+      # ignore-codes elenca i rilievi noti e accettati. Senza, il job resterebbe
+      # rosso per sempre e smetterebbe di essere un segnale: cosi' invece e'
+      # verde, e se diventa rosso e' comparso qualcosa di NUOVO.
+      - uses: wordpress/plugin-check-action@v1
+        with:
+          build-dir: './build'
+          ignore-codes: ${{ inputs.plugin-check-ignore-codes }}
