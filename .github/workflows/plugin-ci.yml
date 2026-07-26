@@ -75,7 +75,11 @@ jobs:
         run: vendor/bin/wp-plugin-lint
 
   compat:
-    name: Compatibilita PHP ${{ inputs.min-php }}
+    # Nome volutamente statico: e' un "required status check" nella protezione
+    # del branch, e interpolarci dentro inputs.min-php lo farebbe cambiare da un
+    # plugin all'altro, obbligando a configurare la protezione otto volte in
+    # modo diverso. La versione effettiva si legge nel log del passo.
+    name: Compatibilita PHP
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

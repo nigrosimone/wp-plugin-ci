@@ -143,6 +143,33 @@ jobs:
 Lo `slug` su wordpress.org viene dedotto dal nome del repository: va passato
 solo se i due non coincidono.
 
+### 3. Protezione del branch
+
+Chiamando un workflow riutilizzabile, i nomi dei check assumono il prefisso del
+job chiamante. Con `jobs: ci:` come sopra i "required status checks" da
+configurare su `main` sono esattamente questi, uguali per tutti i plugin:
+
+```
+ci / Sintassi PHP 7.2      ci / Sintassi PHP 8.2
+ci / Sintassi PHP 7.4      ci / Sintassi PHP 8.3
+ci / Sintassi PHP 8.0      ci / Sintassi PHP 8.4
+ci / Sintassi PHP 8.1      ci / Compatibilita PHP
+ci / Coerenza versioni     ci / WordPress Coding Standards
+ci / Test PHP 7.4          ci / Test PHP 8.3
+```
+
+`ci / WordPress Plugin Check (informativo)` resta **fuori** dai check richiesti:
+dipende da Docker e da centinaia di pacchetti npm, e un problema
+infrastrutturale non deve bloccare un rilascio.
+
+Due dettagli che rendono questo elenco stabile: il job chiamante si chiama `ci`
+in tutti i plugin, e il nome del job di compatibilità è statico invece di
+contenere `min-php`. Cambiare l'uno o l'altro significa riconfigurare la
+protezione su otto repository.
+
+`required_linear_history` va lasciato **disattivato**: vieterebbe i merge
+commit, che servono a preservare gli SHA elencati in `.git-blame-ignore-revs`.
+
 ## Cosa contiene
 
 | Comando | Cosa fa |
