@@ -61,7 +61,15 @@ jobs:
           php-version: ${{ matrix.php }}
           coverage: none
 
+      # --ignore-platform-req=php: la toolchain di sviluppo (PHPUnit 9.6,
+      # nikic/php-parser) richiede PHP >= 7.4, ma qui serve solo wp-plugin-lint,
+      # che gira ovunque. Senza questa opzione non si potrebbe verificare la
+      # sintassi sulle versioni piu' vecchie proprio dove serve di piu': quelle
+      # sono le installazioni WordPress reali su hosting datati.
+      # I pacchetti incompatibili vengono installati ma mai caricati.
       - uses: ramsey/composer-install@v4
+        with:
+          composer-options: "--ignore-platform-req=php"
 
       - name: php -l su tutti i file pubblicati
         run: vendor/bin/wp-plugin-lint
